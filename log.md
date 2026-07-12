@@ -74,3 +74,29 @@ made or reversed.
   end-to-end dataflow, every fp12sr module (S1-S9 + combine), the array top,
   output conversion, the verification methodology, build/run instructions, a
   decision table, and a glossary. Structured for a first-time reader.
+
+### 2026-07-12 — Prepared repo for public GitHub publishing
+
+- **Artifact cleanup:** deleted all build/cache artifacts (root `obj_dir` 49M,
+  `tb/fp12sr_tb/obj_dir` 70M, `__pycache__`, `.DS_Store`). Repo went 124M → ~5M.
+- **Nested repos folded into one umbrella repo (user decision):**
+  `mx-systolic-fpga/` was a separate clone of the public `accl-kaust/mx-systolic-fpga`
+  with our `fp12sr_accum`/`fp12sr_tb` additions untracked on top. To publish the
+  FP12-SR work as one repo, its nested `.git` was relocated out of the tree
+  (moved, not deleted — recoverable backup in the session scratchpad). Its MIT
+  LICENSE + README are retained for attribution.
+- **microxcaling treated as an external dependency (default):** Microsoft's MIT
+  library is *not* redistributed — it's gitignored and documented (requirements.txt,
+  NOTICE, README). Only the legacy encoder golden (`golden-model.py`) needs it;
+  `fp12sr_golden.py` is pure stdlib.
+- **License (user decision): MIT © 2026 KAUST ACCL Lab.** Matches both upstream deps.
+- **Repo hygiene added:** `.gitignore` (artifacts, `*.hex`/`*.meta.txt` generated
+  vectors, personal `.claude/settings.local.json`, `*.code-workspace`, microxcaling),
+  `.gitattributes` (LF normalization, mark vectors linguist-generated), `NOTICE`
+  (third-party attribution), `requirements.txt`.
+- **Generated test vectors are NOT committed** — regenerate with
+  `python3 fp12sr_golden.py` (fp12sr) / `python3 golden-model.py` (encoder).
+- **git init on `main`, one clean initial commit** (315 files). NOT pushed and no
+  remote created — that's left to the user (needs their GitHub account).
+- **Re-verified after all changes:** vectors regenerate, the 4×4 array TB passes
+  all four formats, and `git status` stays clean after a build (ignore rules work).

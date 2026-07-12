@@ -1,0 +1,32 @@
+# ── Build artifacts (Verilator) ───────────────────────────────
+obj_dir/
+*.vcd
+*.fst
+*.o
+*.a
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ── macOS / editors ───────────────────────────────────────────
+.DS_Store
+*.code-workspace
+.vscode/
+
+# ── Claude Code local settings (personal permission allow-lists)
+.claude/settings.local.json
+
+# ── Generated golden test vectors ─────────────────────────────
+# Regenerate the FP12-SR vectors with `python3 fp12sr_golden.py`
+# and the encoder vectors with `python3 golden-model.py`.
+*.hex
+*.meta.txt
+
+# ── External dependency (see NOTICE / README) ─────────────────
+# Microsoft's microxcaling reference library is not redistributed here;
+# clone it separately for the encoder golden model.
+/microxcaling/

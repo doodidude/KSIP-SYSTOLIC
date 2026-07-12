@@ -1,0 +1,27 @@
+KSIP-MODELS
+MX systolic array with an FP12 stochastic-rounding accumulator
+ACCL Lab, KAUST
+
+This project incorporates and builds upon third-party open-source software.
+Original work in this repository (the FP12 eager-SR accumulator design and its
+verification) is under the repository's own LICENSE; the components below retain
+their upstream licenses.
+
+------------------------------------------------------------------------------
+1. mx-systolic-fpga                                            (MIT License)
+   Copyright (c) ACCL Lab, KAUST
+   https://github.com/accl-kaust/mx-systolic-fpga
+
+   The systolic-array RTL under mx-systolic-fpga/ derives from this project.
+   The additions under mx-systolic-fpga/src/fp12sr_accum/ and
+   mx-systolic-fpga/tb/fp12sr_tb/ are original to this repository.
+   Full license text: mx-systolic-fpga/LICENSE
+------------------------------------------------------------------------------
+2. microxcaling                                                (MIT License)
+   Copyright (c) Microsoft Corporation
+   https://github.com/microsoft/microxcaling
+
+   Used as the numerical reference ("golden model") for verification.
+   NOT redistributed in this repository — install it separately (see
+   requirements.txt). Full license text: in the upstream repository.
+------------------------------------------------------------------------------

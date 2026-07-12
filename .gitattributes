@@ -1,0 +1,13 @@
+# Normalize line endings to LF across platforms
+* text=auto eol=lf
+
+*.sv   text eol=lf
+*.svh  text eol=lf
+*.v    text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.hex  text eol=lf
+
+# Mark generated vectors so GitHub collapses them in diffs/language stats
+*.hex      linguist-generated=true
+*.meta.txt linguist-generated=true

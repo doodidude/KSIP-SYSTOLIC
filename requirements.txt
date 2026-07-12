@@ -1,0 +1,17 @@
+# ─────────────────────────────────────────────────────────────
+# Python dependencies for the golden models.
+#
+# fp12sr_golden.py  — the FP12-SR accumulator golden — uses ONLY the
+# Python standard library. Nothing to install for the main design path.
+#
+# golden-model.py — the legacy BF16<->MX encoder golden — additionally
+# needs PyTorch and Microsoft's microxcaling reference library:
+#
+#     pip install -r requirements.txt
+#     git clone https://github.com/microsoft/microxcaling
+#     # then run with microxcaling/ on your PYTHONPATH
+# ─────────────────────────────────────────────────────────────
+
+# Required only by golden-model.py (the encoder golden):
+torch>=2.2.0
+numpy

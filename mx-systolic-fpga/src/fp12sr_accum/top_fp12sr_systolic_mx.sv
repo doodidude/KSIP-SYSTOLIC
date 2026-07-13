@@ -18,6 +18,8 @@
 // exp/mant (which hold their final value once written, they are not reset
 // after the pulse) is already stable by the time the corner's result_valid
 // pulses. So result_valid_out is simply that corner pulse, not an AND.
+
+
 module top_fp12sr_systolic_mx #(
     parameter exp_width = 4,
     parameter man_width = 3,

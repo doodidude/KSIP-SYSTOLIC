@@ -38,6 +38,8 @@
 // the add can't wrap before the clamp fires. The engaging clamp for that
 // corner lives in sr_adder_fp12.sv's S9 (post-accumulate); this one is a
 // no-op for all four target formats at the single-product level.
+
+
 module mx_product_to_fp_operand #(
     parameter exp_width = 4,
     parameter man_width = 3,

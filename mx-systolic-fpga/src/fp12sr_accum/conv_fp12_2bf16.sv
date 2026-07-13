@@ -19,6 +19,7 @@
 // sr_adder_fp12.sv's S9 clamp, plan §1.2); this stage assumes exp_in and
 // the shared scales are within the range those upstream clamps and a
 // non-NaN (!=255) scale code guarantee.
+
 module conv_fp12_2bf16 (
     input  logic        sign_in,
     input  logic [5:0]  exp_in,        // FP12 biased-31 field; 0 == exact zero

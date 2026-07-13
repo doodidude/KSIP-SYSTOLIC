@@ -26,45 +26,47 @@
 // result, not just lane reuse), so the FSM waits for each combine add's
 // valid_out before issuing the next one, rather than assuming a fixed
 // cycle count.
+
 module pe_fp12sr #(
     parameter exp_width = 4,
     parameter man_width = 3,
     parameter bit_width = 1 + exp_width + man_width,
-    parameter k = 32,
-    parameter pe_id = 0,
-    parameter logic [12:0] SEED_BASE = 13'h1ACE,
-    localparam fi_width     = man_width + 2,
+    parameter k = 32, // MX Block size
+    parameter pe_id = 0, // unique ID, used to seed LFSR
+    parameter logic [12:0] SEED_BASE = 13'h1ACE, // constant for PRNG
+    localparam fi_width     = man_width + 2, // padded operand width for multiply
     localparam frac_width   = 2 * man_width + 1,   // == sr_adder_fp12's CW
-    localparam NUM_LANES    = 7,
-    localparam LANE_W       = $clog2(NUM_LANES),
-    localparam FP12_MANT_W  = 5,
-    localparam EXTRA        = frac_width - FP12_MANT_W,
-    localparam IDX_W        = $clog2(k + 1)
+    localparam NUM_LANES    = 7, // lane count = adder latency + 1 
+    localparam LANE_W       = $clog2(NUM_LANES), // bit width needed to index the lane registers 
+    localparam FP12_MANT_W  = 5, 
+    localparam EXTRA        = frac_width - FP12_MANT_W, // extra precision bits beyond FP12
+    localparam IDX_W        = $clog2(k + 1) // bit width needed to count elements 0 to k 
 )(
     input  logic clk,
     input  logic rst,
 
-    input  logic [bit_width-1:0] data_in_left,
-    input  logic [bit_width-1:0] data_in_top,
+    input  logic [bit_width-1:0] data_in_left, // MX element from west 
+    input  logic [bit_width-1:0] data_in_top, // MX element from north
     input  logic valid_in_left,
-    input  logic valid_in_top,
+    input  logic valid_in_top, // valid signals
 
-    output logic [bit_width-1:0] data_out_right,
+    output logic [bit_width-1:0] data_out_right, 
     output logic [bit_width-1:0] data_out_bottom,
     output logic valid_out_right,
-    output logic valid_out_bottom,
+    output logic valid_out_bottom, // valid signals 
 
-    output logic result_valid,
-    output logic result_sign,
+    output logic result_valid, // pulses for one cycle when done 
+    output logic result_sign, // final FP12 results 
     output logic [5:0] result_exp,
     output logic [FP12_MANT_W-1:0] result_mant
 );
 
     // ------------------------------------------------- systolic pass-through
+
     logic [bit_width-1:0] data_right_s1, data_right_s2, data_right_s3;
     logic [bit_width-1:0] data_bottom_s1, data_bottom_s2, data_bottom_s3;
     logic valid_right_s1, valid_right_s2, valid_right_s3;
-    logic valid_bottom_s1, valid_bottom_s2, valid_bottom_s3;
+    logic valid_bottom_s1, valid_bottom_s2, valid_bottom_s3; // registers for data (3 stage pipeline, 1 for data and 1 for valid signals)
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -72,7 +74,7 @@ module pe_fp12sr #(
             data_bottom_s1 <= '0; data_bottom_s2 <= '0; data_bottom_s3 <= '0;
             valid_right_s1 <= 1'b0; valid_right_s2 <= 1'b0; valid_right_s3 <= 1'b0;
             valid_bottom_s1 <= 1'b0; valid_bottom_s2 <= 1'b0; valid_bottom_s3 <= 1'b0;
-        end else begin
+        end else begin // passing data through PE
             data_right_s1 <= data_in_left;   data_right_s2 <= data_right_s1;   data_right_s3 <= data_right_s2;
             data_bottom_s1 <= data_in_top;   data_bottom_s2 <= data_bottom_s1; data_bottom_s3 <= data_bottom_s2;
             valid_right_s1 <= valid_in_left; valid_right_s2 <= valid_right_s1; valid_right_s3 <= valid_right_s2;
@@ -89,12 +91,13 @@ module pe_fp12sr #(
     // Reused exact-design decode (pe_exact_4s.sv stage 1), with Sub-OFF:
     // mantissa forced to 0 whenever the operand's own exponent field is 0
     // (nrm==0), instead of the exact design's IEEE-subnormal {0,mantissa}.
-    logic [fi_width-1:0] u_op0_s1, u_op1_s1;
-    logic prd_sign_s1;
-    logic [exp_width-1:0] exp0_s1, exp1_s1;
+
+    logic [fi_width-1:0] u_op0_s1, u_op1_s1; // decoded unsigned operands 
+    logic prd_sign_s1; // XOR of input signs 
+    logic [exp_width-1:0] exp0_s1, exp1_s1; // biased exponents passed through 
     logic valid_s1;
-    logic [IDX_W-1:0] idx_s1;
-    logic [IDX_W-1:0] elem_count;
+    logic [IDX_W-1:0] idx_s1; // element index
+    logic [IDX_W-1:0] elem_count; // running count of elements seen 
     logic is_new_elem;
 
     assign is_new_elem = valid_in_left && valid_in_top;
@@ -107,11 +110,11 @@ module pe_fp12sr #(
             valid_s1 <= 1'b0;
             idx_s1 <= '0;
             elem_count <= '0;
-        end else begin
-            automatic logic op0_sgn, op1_sgn, op0_nrm, op1_nrm;
-            automatic logic [exp_width-1:0] op0_ef, op1_ef;
+        end else begin 
+            automatic logic op0_sgn, op1_sgn, op0_nrm, op1_nrm; // sign bits + normal check
+            automatic logic [exp_width-1:0] op0_ef, op1_ef; 
             automatic logic [man_width-1:0] op0_mb, op1_mb;
-            automatic logic [man_width:0] op0_ext, op1_ext;
+            automatic logic [man_width:0] op0_ext, op1_ext; // break up MX element
 
             op0_sgn = data_in_left[bit_width-1];
             op0_ef  = data_in_left[bit_width-2:man_width];
@@ -127,18 +130,20 @@ module pe_fp12sr #(
 
             u_op0_s1 <= {{(fi_width-man_width-1){1'b0}}, op0_ext};
             u_op1_s1 <= {{(fi_width-man_width-1){1'b0}}, op1_ext};
-            prd_sign_s1 <= op0_sgn ^ op1_sgn;
-            exp0_s1 <= op0_ef;
+            prd_sign_s1 <= op0_sgn ^ op1_sgn; // product sign = XOR input signs 
+            exp0_s1 <= op0_ef; // passses exponents through S2 
             exp1_s1 <= op1_ef;
             valid_s1 <= is_new_elem;
-            idx_s1 <= elem_count;
+            idx_s1 <= elem_count; // tag element with its index 
             if (is_new_elem && elem_count < k[IDX_W-1:0])
-                elem_count <= elem_count + 1'b1;
+                elem_count <= elem_count + 1'b1; // incriment counter 
         end
     end
 
     // --------------------------------------------------------------- S2
     // Reused exact-design exact multiply (pe_exact_4s.sv stage 2).
+
+
     logic [2*fi_width-1:0] u_prd_s2;
     logic prd_sign_s2;
     logic [exp_width-1:0] exp0_s2, exp1_s2;
@@ -153,9 +158,9 @@ module pe_fp12sr #(
             valid_s2 <= 1'b0;
             idx_s2 <= '0;
         end else begin
-            u_prd_s2 <= u_op0_s1 * u_op1_s1;
-            prd_sign_s2 <= prd_sign_s1;
-            exp0_s2 <= exp0_s1;
+            u_prd_s2 <= u_op0_s1 * u_op1_s1; // multilpy mantissa 
+            prd_sign_s2 <= prd_sign_s1; // pass sign 
+            exp0_s2 <= exp0_s1; // pass exponents 
             exp1_s2 <= exp1_s1;
             valid_s2 <= valid_s1;
             idx_s2 <= idx_s1;
@@ -163,6 +168,8 @@ module pe_fp12sr #(
     end
 
     // --------------------------------------------------------------- S3
+    // conversion from MX product of previous stage into FP12 for the accumilation 
+
     logic valid_s3, sign_s3;
     logic [5:0] exp_s3;
     logic [frac_width-1:0] frac_s3;
@@ -185,13 +192,15 @@ module pe_fp12sr #(
         .frac_out(frac_s3)
     );
 
+    // adding one cycle of delay to match S3
+
     always_ff @(posedge clk) begin
         if (rst) idx_s3 <= '0;
         else     idx_s3 <= idx_s2;
     end
 
     logic [LANE_W-1:0] lane_idx;
-    assign lane_idx = idx_s3 % NUM_LANES;
+    assign lane_idx = idx_s3 % NUM_LANES; 
 
     // ------------------------------------------------------- PRNG (per-PE)
     // Dispatch-gated, NOT free-running: the LFSR advances exactly once per
@@ -204,6 +213,7 @@ module pe_fp12sr #(
     // stream, identical at any array position behind any systolic stagger
     // or feed gap, which is what lets one block-level golden replay
     // (fp12sr_golden.py::pe_fp12sr_single_block) verify every PE.
+
     logic [12:0] lfsr_rand;
     logic [12:0] seed_in;
     assign seed_in = (SEED_BASE ^ pe_id[12:0]) | 13'h1;
@@ -217,11 +227,13 @@ module pe_fp12sr #(
     );
 
     // ------------------------------------------- lane register file (P=7)
+
     logic lane_sign [NUM_LANES];
     logic [5:0] lane_exp [NUM_LANES];
     logic [FP12_MANT_W-1:0] lane_mant [NUM_LANES];
 
-    // ------------------------------------------------------- combine FSM
+    // ------------------------------------------------------- combine FSM - used to manage lanes and keep PE busy 
+
     typedef enum logic [1:0] {ST_INTAKE, ST_COMBINE_ISSUE, ST_COMBINE_WAIT, ST_DONE} state_t;
     state_t state;
     logic [IDX_W-1:0] results_received, results_received_next;
@@ -230,6 +242,7 @@ module pe_fp12sr #(
     assign results_received_next = results_received + (adder_valid_out ? 1'b1 : 1'b0);
 
     // ------------------------------------------------- shared adder dispatch
+
     logic adder_valid_in, adder_sign_a, adder_sign_b;
     logic [5:0] adder_exp_a, adder_exp_b;
     logic [FP12_MANT_W-1:0] adder_mant_a;
@@ -281,6 +294,7 @@ module pe_fp12sr #(
     // 6-stage tag pipeline, matching sr_adder_fp12's own 6 register stages,
     // so tag_pipe[5] is available at the same cycle as adder_valid_out/
     // adder_*_out (see module header comment for the cycle-by-cycle proof).
+
     logic [LANE_W-1:0] tag_pipe [6];
     integer t;
     always_ff @(posedge clk) begin

@@ -100,3 +100,64 @@ made or reversed.
   remote created — that's left to the user (needs their GitHub account).
 - **Re-verified after all changes:** vectors regenerate, the 4×4 array TB passes
   all four formats, and `git status` stays clean after a build (ignore rules work).
+
+### 2026-07-13 — Chisel-compatible packed arrays + Chipyard integration (in progress)
+
+- **SV ports converted from unpacked to packed arrays for Chisel BlackBox
+  compatibility.** Chisel's `Vec`/`UInt` flattens to individual numbered wires
+  (`data_in_west_0`, `data_in_west_1`, ...), which can't connect to SV unpacked
+  arrays (`data_in_west [N]`). Changed `top_fp12sr_systolic_mx.sv` ports from
+  unpacked `[N]` suffix to packed `[N-1:0]` prefix form (e.g.,
+  `input logic [N-1:0][bit_width-1:0] data_in_west`). Packed 2D arrays are
+  bit-identical to Chisel's flat `UInt((n * bitWidth).W)` and still support
+  per-element indexing (`port[i]`), so internal generate-loop logic is unchanged.
+  Testbench signal declarations updated to match. All 4 formats × 16 PEs still
+  pass on Verilator 5.050.
+- **Chipyard integration started (remote `chipyard` machine, separate repo).**
+  Goal: instantiate the FP12-SR systolic array as a RoCC accelerator inside a
+  Rocket SoC, elaborated and simulated via Chipyard's Verilator flow.
+  - **Approach: RoCC (not MMIO).** RoCC accelerators are plugged in entirely via
+    config fragments — no `DigitalTop.scala` changes, no `CanHavePeriphery`
+    traits. The config fragment tells Rocket to instantiate the accelerator inside
+    the tile. This is the standard Chipyard pattern (Gemmini, etc.).
+  - **File layout:**
+    - `generators/fp12_systolic/src/main/scala/FP12_Systolic.scala` —
+      `TopFp12srSystolicMxBlackBox` (Chisel BlackBox wrapping the SV module, with
+      `addResource` for all 6 SV files), `SystolicArrayAccelerator` (LazyRoCC
+      wrapper, currently a minimal stub with tied-off data ports),
+      `WithFP12SystolicArray` (config fragment adding the accelerator via
+      `BuildRoCC`).
+    - `generators/chipyard/src/main/scala/config/FP12Configs.scala` —
+      `FP12RocketConfig` (extends `WithFP12SystolicArray ++ WithNBigCores(1) ++
+      AbstractConfig`). Config lives in the chipyard project to avoid a circular
+      sbt dependency (fp12_systolic depends on rocketchip; chipyard depends on
+      fp12_systolic; config needs chipyard's `AbstractConfig`).
+    - `generators/fp12_systolic/src/main/resources/vsrc/` — all 6 SV source files
+      (`top_fp12sr_systolic_mx.sv`, `pe_fp12sr.sv`, `sr_adder_fp12.sv`,
+      `mx_product_to_fp_operand.sv`, `lfsr_galois.sv`, `conv_fp12_2bf16.sv`).
+    - `build.sbt` — `lazy val fp12systolic` project definition (depends on
+      `rocketchip`, needs `commonSettings` + chisel library deps), added to
+      chipyard's `.dependsOn(...)` list.
+  - **Build command:** `make CONFIG=chipyard.FP12RocketConfig -j8` from
+    `sims/verilator/`.
+  - **Errors resolved so far:**
+    1. `DigitalTop is already defined` — user had duplicated the class while
+       adding a `CanHavePeriphery` trait; reverted to original (not needed for
+       RoCC approach).
+    2. `not found: value fp12_systolic` — sbt project wasn't registered in
+       `build.sbt`; added `lazy val` + `.dependsOn()`.
+    3. sbt identifier mismatch (`fp12systolic` vs `fp12Systolic`) — names must
+       match exactly between the `lazy val` definition and `.dependsOn()`.
+  - **Remaining blocker:** `object util is not a member of package chisel3` —
+    the fp12systolic sbt project is missing chisel3 library dependencies. Fix:
+    copy the `.settings(libraryDependencies ++= ...)` chain from an existing
+    generator definition (e.g., `testchipip`) in `build.sbt`. The exact variable
+    name (`rocketLibDeps`, `chiselLibDeps`, etc.) is Chipyard-version-dependent.
+  - **Current state:** RoCC stub compiles Scala but fails on missing chisel3
+    classpath. Data path is tied off (no functional DMA yet) — first goal is to
+    get the skeleton elaborating into the SoC, then wire actual data movement.
+  - **Lesson (early MMIO vs RoCC):** started with the MMIO `CanHavePeriphery`
+    approach, which requires modifying `DigitalTop.scala` and plumbing TileLink.
+    Switched to RoCC after hitting compilation issues — RoCC is config-only, no
+    `DigitalTop` changes, simpler to get a first build. MMIO may be revisited
+    later when adding a proper data-movement interface.

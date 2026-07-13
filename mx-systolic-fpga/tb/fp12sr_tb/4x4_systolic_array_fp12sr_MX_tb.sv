@@ -62,13 +62,13 @@ module check_one_array #(
 );
 
     logic rst;
-    logic [bit_width-1:0] data_in_west [N];
-    logic [bit_width-1:0] data_in_north [N];
-    logic data_valid_west [N];
-    logic data_valid_north [N];
-    logic [7:0] shared_scale_west [N];
-    logic [7:0] shared_scale_north [N];
-    logic [15:0] bf16_result [N*N];
+    logic [N-1:0][bit_width-1:0] data_in_west;
+    logic [N-1:0][bit_width-1:0] data_in_north;
+    logic [N-1:0] data_valid_west;
+    logic [N-1:0] data_valid_north;
+    logic [N-1:0][7:0] shared_scale_west;
+    logic [N-1:0][7:0] shared_scale_north;
+    logic [N*N-1:0][15:0] bf16_result;
     logic result_valid_out;
 
     top_fp12sr_systolic_mx #(

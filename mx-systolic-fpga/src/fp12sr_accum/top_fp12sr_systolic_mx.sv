@@ -31,13 +31,13 @@ module top_fp12sr_systolic_mx #(
 )(
     input  logic clk,
     input  logic rst,
-    input  logic [bit_width-1:0] data_in_west [N],
-    input  logic [bit_width-1:0] data_in_north [N],
-    input  logic data_valid_west [N],
-    input  logic data_valid_north [N],
-    input  logic [7:0] shared_scale_west [N],
-    input  logic [7:0] shared_scale_north [N],
-    output logic [15:0] bf16_result [N*N],
+    input  logic [N-1:0][bit_width-1:0] data_in_west,
+    input  logic [N-1:0][bit_width-1:0] data_in_north,
+    input  logic [N-1:0] data_valid_west,
+    input  logic [N-1:0] data_valid_north,
+    input  logic [N-1:0][7:0] shared_scale_west,
+    input  logic [N-1:0][7:0] shared_scale_north,
+    output logic [N*N-1:0][15:0] bf16_result,
     output logic result_valid_out
 );
     logic [bit_width-1:0] pe_data_right [N][N];
